@@ -1,4 +1,4 @@
-# Stanford Code in Place X — Final Project
+## Stanford Code in Place X — Final Project
 
 A hands-on Python project developed for Stanford's Code in Place X program. Traflo brings together core programming concepts, traffic simulation, and planned machine learning experiments to explore smarter traffic signal timing through an interactive application.
 

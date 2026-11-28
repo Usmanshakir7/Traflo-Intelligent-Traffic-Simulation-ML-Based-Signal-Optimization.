@@ -1,213 +1,262 @@
 # Stanford Code in Place X — Final Project
 
-A Python-based final project developed for Stanford Code in Place X. **Traflo** applies fundamental programming skills to an interactive traffic simulator and explores machine-learning-assisted traffic signal optimization.
-
 # Traflo
 **Intelligent Traffic Simulation & ML-Based Signal Optimization**
 
-Traflo is a planned, modular traffic simulation platform where users can create intersection traffic scenarios, test conventional fixed-time signals against adaptive strategies, and analyze vehicle waiting times and congestion. The initial version will simulate **one four-way intersection** and is designed so that controllers, models, and visualizations can be improved independently over time.
+Traflo is an interactive **Python traffic simulator** built as a **Stanford Code in Place X final project**. It models a single four-way intersection and compares three traffic-signal controllers: **Fixed-Time**, **Rule-Based Adaptive**, and **ML-Assisted**.
 
-> **Project status:** Architecture designed; implementation in progress. This README documents our **planned v1.0 design**, not completed simulator functionality, benchmark results, or a live deployment.
+**[Launch the live application](https://traflo-intelligent-traffic-simulation-ml-based.streamlit.app/)**
+
+> **Status:** Version 1 is implemented and publicly deployed on Streamlit Community Cloud. All three controller options and the comparison dashboard have been verified in the deployed app. Traflo is educational software based on synthetic traffic data, not a real-world traffic control system.
+
+---
 
 ## The Problem
 
-Many conventional traffic signals operate on preset timing schedules regardless of short-term differences in vehicle demand. For example, one approach might have a long queue while another has relatively few vehicles, yet both receive the same configured green duration.
+Conventional fixed-time traffic signals follow a preset schedule even when one direction is much busier than another. Traflo asks:
 
-Traflo explores the question: **Can adaptive signal timing reduce simulated congestion and waiting time compared with a conventional fixed-time baseline?**
+**Can traffic-aware green-light timing reduce vehicle waiting time compared with a fixed-time signal in a simulated intersection?**
 
-Our baseline is **inspired by familiar pre-programmed signals in Karachi, Pakistan**, not a claim about the specific operation or timing of every real Karachi intersection. All signal timings are configurable and our conclusions will be limited to the simulated conditions tested.
+The reference signal is inspired by familiar pre-programmed signals in Karachi, Pakistan. Its example settings are not claims about any specific real intersection.
 
-## Project Objectives
+## Features
 
-- Create a working, testable, one-second-step traffic simulation.
-- Model the North, South, East, and West approaches with vehicle arrivals, queues, and departures.
-- Compare **three interchangeable controllers:** fixed-time, rule-based adaptive, and ML-assisted.
-- Allow users to customize arrival rates, initial queues, and experiment duration.
-- Use the **same traffic-arrival sequence** for fair comparisons between controllers.
-- Measure average waiting time, throughput, queue lengths, and vehicles still waiting.
-- Build an interactive Streamlit interface and deploy the finished application.
+- **Four-way intersection:** North, South, East, and West vehicle queues.
+- **Three traffic controllers:** fixed schedule, queue-responsive rules, and a trained Random Forest model.
+- **Custom scenarios:** initial vehicle counts, arrival intervals, and simulation duration from 60 to 600 seconds.
+- **Traffic presets:** Normal traffic, North–South rush hour, East–West rush hour, and Balanced traffic.
+- **Visual simulation snapshots:** road layout, signal colors, representative cars, and queue counts.
+- **Interactive exploration:** scrub through recorded simulation steps using a time slider.
+- **Analytics dashboard:** comparison metrics, queues over time, throughput, remaining vehicles, and ML timing decisions.
+- **Reproducible comparisons:** each controller gets the same deterministic initial traffic and arrivals.
+- **Public deployment** and Python unit tests.
 
-## How Traflo Will Work
+The intersection display shows **recorded snapshots**, rather than continuous moving-vehicle animation.
 
-1. **Configure:** The user selects a scenario (such as rush hour, balanced traffic, or custom queues and arrival rates).
-2. **Prepare:** The experiment manager generates a reproducible traffic-arrival schedule using a selected random seed.
-3. **Simulate:** The engine advances time, adds arriving vehicles, applies traffic signals, releases vehicles, and tracks waiting times.
-4. **Control:** A controller chooses a permitted signal phase or green duration using its own strategy.
-5. **Compare:** Each controller runs separately with the **same input arrivals and evaluation settings**.
-6. **Explain:** The dashboard displays measured outcomes and differences between strategies.
+## Try Traflo
 
-### Intersection and Signal Phases
+1. Open **[Traflo on Streamlit](https://traflo-intelligent-traffic-simulation-ml-based.streamlit.app/)**.
+2. Choose a traffic preset in the sidebar, or change the individual road sliders.
+3. Set the simulation duration and click **Run simulation**.
+4. On **Intersection simulator**, switch between the three controllers and move the simulation-time slider.
+5. Open **Controller comparison** to review waiting-time metrics, charts, and the ML controller's decisions.
 
-The v1.0 simulator uses a four-way intersection with two nonconflicting movement phases:
+## How It Works
 
-- **North–South green:** North and South traffic can pass while East and West wait.
-- **East–West green:** East and West traffic can pass while North and South wait.
+Traflo advances a simplified intersection simulation **one second at a time**. Vehicles join queues at configured intervals, and vehicles can depart only during their permitted green phase. Each active approach can release **one queued vehicle every two uninterrupted green seconds**.
 
-Green phases are separated by configurable clearance intervals. The simulator will enforce allowed phase transitions and minimum/maximum signal timings. Vehicle discharge capacity, arrival rates, and simulation duration will also be adjustable.
+### Signal Phases
 
-## Controller Strategies
+| Phase | Allowed vehicle movement |
+| --- | --- |
+| North–South green | North and South vehicles can pass |
+| East–West green | East and West vehicles can pass |
+| All-red clearance | No vehicles can pass |
 
-| Controller | Decision method | Purpose |
+**Default fixed-time cycle:**
+
+~~~text
+30 s North–South green
+          ↓
+    4 s all-red
+          ↓
+30 s East–West green
+          ↓
+    4 s all-red
+          ↓
+Repeat — 68 seconds per cycle
+~~~
+
+### Controller Comparison
+
+| Controller | Decision strategy | Timing |
 | --- | --- | --- |
-| **Fixed-Time** | Repeats a configured green-light schedule, independent of queue lengths | Conventional Karachi-style reference baseline |
-| **Rule-Based Adaptive** | Uses current queue lengths or traffic pressure to change durations | Transparent, non-ML adaptive benchmark |
-| **ML-Assisted** | Predicts simulated waiting-time outcomes for candidate valid durations, then chooses one | Test whether a learned model improves results |
+| **Fixed-Time** | Repeats the same schedule regardless of queues | Default 30 s North–South / 30 s East–West |
+| **Rule-Based Adaptive** | Allocates green time using the current ratio of North–South to East–West queues at each cycle boundary | 20–40 seconds per phase; 60 seconds total green |
+| **ML-Assisted** | Predicts queue waiting for five candidates and chooses the lowest predicted wait at each cycle boundary | 20/40, 25/35, 30/30, 35/25, or 40/20 seconds |
 
-**Example fixed-time cycle (illustrative only):** 30 seconds North–South green → clearance → 30 seconds East–West green → clearance → repeat. Actual defaults will be set centrally in the configuration and can be changed later.
+Each complete cycle also includes two four-second all-red intervals. All controllers follow a common Python interface.
 
-All controllers will follow the **same interface**, allowing the simulation engine to work with any controller without being rewritten. A separate scheduler/validator will apply safety-related timing and phase constraints.
+## Machine Learning
 
-## Machine Learning Approach (Planned)
+Traflo V1 trains a **RandomForestRegressor** with **200 trees** on traffic scenarios generated by the simulator.
 
-The initial ML experiment will use a supervised regression model such as **Random Forest Regressor** from scikit-learn.
+**Training data:** 300 synthetic scenarios × 5 timing choices = **1,500 rows**. For each scenario, the system simulates all candidate signal splits over a **68-second** cycle and measures accumulated queue waiting.
 
-- **Candidate features:** Road queue lengths, vehicle arrival rates, active phase, and candidate green duration.
-- **Target:** Waiting-time or congestion metric measured by the simulation under the candidate decision.
-- **Data source:** Synthetic scenarios generated by Traflo's simulation engine.
-- **Training and validation:** Separate scenario groups for training and held-out testing; evaluate regression error on unseen conditions.
-- **Controller comparison:** Measure the downstream traffic results of the ML-assisted strategy against fixed-time and rule-based controls on multiple reproducible scenarios.
+**Input features:**
+- Initial queue size for North, South, East, and West
+- Vehicle arrival interval for each direction
+- Proposed North–South and East–West green durations
 
-The model is **not assumed to outperform** simpler controllers. Performance gains or losses will be reported from actual tests once the system is implemented.
+**Prediction target:** Queue-seconds, calculated as the sum of queued vehicles remaining after each one-second step. Lower values indicate less accumulated queue waiting.
 
-## Modular Architecture
+**Training and evaluation:** A group-based split keeps all five timing options from a single scenario entirely in training or entirely in testing. The split has **240 training scenarios (1,200 rows)** and **60 held-out scenarios (300 rows)**.
 
-```text
-Streamlit UI
-     |
-Experiment Manager (scenarios, comparison, reproducibility)
-     |
-Traffic Simulation Engine (vehicles, intersection, timing, metrics)
-     |
-Controller Interface
-     +-- Fixed-Time Controller
-     +-- Rule-Based Adaptive Controller
-     +-- ML-Assisted Controller
-     |
-Data Generation / Model Training / Evaluation / Results
-```
+In the live application, the ML controller reads current queue sizes and arrival intervals, predicts the waiting time for five signal splits, and picks the lowest prediction for the next 68-second cycle. This is supervised ML-assisted control, not reinforcement learning.
 
-The **simulation engine** handles what happens on the roads. The **controller** handles signal decisions. The **UI** handles interaction and visualization. Keeping those concerns separate makes future changes easier.
+### V1 Test Results
 
-## VS Code Project Structure (Planned v1.0)
+Results from [the saved training report](ml/models/training_report.json) on the **60 held-out one-cycle scenarios**:
 
-```text
+| Measure | Result |
+| --- | ---: |
+| R² | **0.9766** |
+| Mean absolute error | **412.84 queue-seconds** |
+| Root mean squared error | **526.73 queue-seconds** |
+| Fixed-time mean queue waiting | **7,155.70 queue-seconds** |
+| ML-selected mean queue waiting | **7,122.02 queue-seconds** |
+| Best tested timing (evaluation-only oracle) | **7,104.15 queue-seconds** |
+| **ML reduction relative to fixed-time** | **0.47%** |
+| Optimal-timing selection rate (ties included) | **66.67%** |
+
+The oracle benchmark uses outcomes from all candidates **after simulation**. It is a comparison reference, not information the ML controller has when choosing a signal.
+
+**Interpretation:** The model explains much of the variation in total simulated waiting, but its measured waiting-time improvement is **small**. A strong R² score does not establish that signal control is optimal. Results from longer runs in the interactive app are separate experiments and may differ; no controller is guaranteed to perform best in every traffic scenario.
+
+## Understanding the Metrics
+
+| Dashboard metric | Meaning |
+| --- | --- |
+| Vehicles arrived | Initial queue vehicles plus new arrivals during the run |
+| Vehicles passed | Vehicles released from queues |
+| Vehicles remaining | Vehicles still waiting when the run ends |
+| Queue-seconds | Sum of end-of-step queued vehicle counts across the run |
+| Accrued wait per arrival | Queue-seconds divided by all arrivals; a finite-horizon proxy, **not** full trip delay |
+| Average completed wait | Average queue time for vehicles that passed during the run |
+
+The simulator verifies that **arrived = passed + remaining**.
+
+Comparisons use identical arrivals and scenario settings, but a controller can finish a run with more queued vehicles. Interpret waiting metrics alongside throughput and remaining vehicles.
+
+## Project Structure
+
+~~~text
 Traflo/
 ├── app.py                         # Streamlit entry point
-├── core/
-│   ├── __init__.py
-│   ├── engine.py                  # Simulation time-step loop
-│   ├── intersection.py            # Road approaches and signal phases
-│   ├── vehicles.py                # Arrival and queue representation
-│   └── metrics.py                 # Wait time, throughput, queue metrics
-├── controllers/
-│   ├── __init__.py
-│   ├── base.py                    # Shared controller contract
-│   ├── fixed_time.py              # Conventional schedule
-│   ├── adaptive.py                # Rule-based adaptive control
-│   └── ml_controller.py           # Model-driven signal decisions
-├── ml/
-│   ├── generate_data.py           # Simulation-based training data
-│   ├── train.py                   # Model training
-│   ├── evaluate.py                # Prediction evaluation
-│   └── models/                    # Trained artifacts (when created)
-├── experiments/
-│   ├── __init__.py
-│   ├── scenarios.py               # Traffic scenario definitions
-│   └── compare.py                 # Same-scenario controller comparisons
-├── ui/
-│   ├── __init__.py
-│   ├── controls.py                # Input sliders, selectors, buttons
-│   ├── visualization.py           # Intersection and signal graphics
-│   └── dashboard.py               # Charts and metric summaries
 ├── config/
-│   ├── __init__.py
-│   └── settings.py                # Central configuration and defaults
+│   └── settings.py                # Default signal and traffic settings
+├── core/
+│   ├── engine.py                  # One-second simulation loop
+│   └── vehicles.py                # FIFO vehicle queues and waiting times
+├── controllers/
+│   ├── base.py                    # Controller interface
+│   ├── fixed_time.py              # Fixed signal timing
+│   ├── adaptive.py                # Queue-based adaptive timing
+│   └── ml_controller.py           # Random Forest-assisted timing
+├── data/
+│   └── traffic_training.csv       # Synthetic training data
+├── ml/
+│   ├── generate_data.py           # Generate labeled scenarios
+│   ├── train.py                   # Train and evaluate model
+│   └── models/
+│       ├── random_forest.joblib   # Trained V1 model
+│       └── training_report.json   # Saved metrics
+├── ui/
+│   ├── controls.py                # Sidebar inputs and scenarios
+│   ├── visualization.py           # Matplotlib intersection figure
+│   └── dashboard.py               # Comparison tables and plots
 ├── tests/
 │   ├── test_engine.py
-│   └── test_controllers.py
+│   ├── test_controllers.py
+│   └── test_ml_controller.py
+├── run_simulation.py              # Terminal comparison (fixed/adaptive)
 ├── requirements.txt
 ├── .gitignore
 └── README.md
-```
+~~~
 
-These paths are the **target workspace layout**. Listing a file here does not mean it has already been created or implemented in the repository.
+Some additional repository files are empty **future-extension placeholders** and are not part of the implemented V1 application.
 
-### File Responsibilities
+## Installation and Local Run
 
-- **`config/settings.py`:** Configure signal timings, clearance intervals, road capacities, scenario defaults, and simulation duration.
-- **`core/`:** Track vehicles and intersection state, advance the simulation, and compute outcomes.
-- **`controllers/`:** Implement interchangeable traffic-control strategies through one common interface.
-- **`experiments/`:** Generate repeatable traffic scenarios and ensure fair comparisons.
-- **`ml/`:** Generate training examples, train/evaluate models, and store approved model artifacts.
-- **`ui/`:** Present the simulator, interactive controls, and performance analytics.
-- **`tests/`:** Verify simulation behavior, queue accounting, and controller constraints.
+**Requirements:** Python 3.11 recommended; pip or Conda.
 
-## Planned Technology Stack
+Clone the repository using the **Code → Clone** option on GitHub, then open the project folder in a terminal. **Note:** The GitHub repository name ends in a period.
+
+With Conda:
+
+~~~bash
+conda create -n traflo-app python=3.11 pip -y
+conda activate traflo-app
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
+~~~
+
+Open **http://localhost:8501**. You can also use any Python 3.11 virtual environment with the same pip dependencies.
+
+The trained model is already included at **ml/models/random_forest.joblib**, so model retraining is **not necessary** to run the web app. Load joblib model files only from trusted sources because deserialization can execute code.
+
+### Run Tests
+
+~~~bash
+python -m unittest discover -s tests -v
+~~~
+
+### Reproduce V1 Training (Optional)
+
+~~~bash
+python -m ml.generate_data
+python -m ml.train
+~~~
+
+These commands recreate the synthetic CSV and overwrite the local V1 model and training report. The uploaded model and dataset can be used without retraining.
+
+### Run the CLI Demo (Optional)
+
+~~~bash
+python run_simulation.py
+~~~
+
+This terminal script compares the fixed-time and rule-based adaptive controllers.
+
+## Technology Stack
 
 | Component | Technology |
 | --- | --- |
-| Core logic and simulation | Python |
-| Data processing | NumPy, Pandas |
-| Machine learning | scikit-learn |
-| Plots and analysis | Matplotlib or Plotly |
-| User interface | Streamlit |
-| Testing | pytest |
-| Source control | Git / GitHub |
-| Planned deployment | Streamlit Community Cloud |
+| Simulation engine | Python standard library |
+| Web application | Streamlit |
+| Visualization | Matplotlib |
+| Data manipulation | Pandas and NumPy |
+| Machine learning | scikit-learn Random Forest Regressor |
+| Model serialization | joblib |
+| Tests | Python unittest |
+| Repository and deployment | GitHub, Streamlit Community Cloud |
 
-## Connection to Stanford Code in Place X
+## Stanford Code in Place X Connection
 
-Traflo extends the programming foundations practiced in CIPX:
+Traflo applies core Python concepts learned and practiced in Stanford Code in Place X:
 
-- **Variables, conditions, and loops:** Update signals, queues, and elapsed time.
-- **Functions:** Reusable arrival, departure, and metric calculations.
-- **Lists and dictionaries:** Store vehicles, road states, and experiment settings.
-- **Classes and objects:** Separate vehicles, intersection logic, and controller strategies.
-- **Testing and debugging:** Validate behavior and compare results systematically.
+- **Variables, loops, and conditionals** to advance time and change signals
+- **Functions** to organize traffic calculations
+- **Lists, dictionaries, and queues** to track traffic data and history
+- **Classes and objects** for the simulation and three interchangeable controllers
+- **Modules and imports** to separate responsibilities
+- **Testing and debugging** to validate vehicle accounting and signal logic
 
-Machine learning and web deployment are additional extensions beyond the core Python simulator.
+The Streamlit interface and machine-learning model build on those foundations.
 
-## Development Roadmap
+## Current Status and Roadmap
 
-- [x] Select project concept and name.
-- [x] Design modular architecture and VS Code folder structure.
-- [ ] Implement central simulation configuration.
-- [ ] Build vehicle queues, intersection state, and simulation engine.
-- [ ] Implement conventional fixed-time controller.
-- [ ] Add test coverage for queue accounting, phase rules, and metrics.
-- [ ] Build rule-based adaptive controller.
-- [ ] Implement reproducible experiment comparison.
-- [ ] Generate synthetic training data and train/evaluate ML model.
-- [ ] Integrate ML-assisted controller.
-- [ ] Build Streamlit interface and traffic visualization.
-- [ ] Deploy application and document measured results.
-- [ ] Add screenshots and a short project demonstration.
+**Completed in V1:** one-intersection simulation, all three controllers, interactive traffic settings, visual snapshots, analytics dashboard, synthetic data generation, model training and evaluation, local tests, and public Streamlit deployment.
 
-## Future Extensions
+**Future improvements:**
+- Evaluate and train models for longer traffic horizons and more diverse conditions
+- Improve vehicle movement realism, arrivals, and traffic safety constraints
+- Animate individual cars smoothly
+- Add human-versus-AI traffic-control challenges
+- Simulate multiple connected intersections
+- Explore real-world traffic datasets and more advanced ML strategies
 
-The architecture is intended to support the following **after the first working version**:
+## Limitations
 
-- Human-vs-AI traffic signal challenge
-- Smoother car animations and richer intersection graphics
-- Multiple connected intersections and coordinated controllers
-- More ML techniques, including reinforcement-learning experiments
-- Scenario import/export and additional traffic metrics
-- Evaluation with suitable real-world traffic datasets
-- Additional configurable conventional signal schedules
+Traflo is an **educational and experimental simulator**. It does not use real traffic feeds or control live traffic signals. The current model has deterministic arrivals, basic queues, no lane changes or turning movements, no pedestrians, and no detailed driving physics. The ML model was trained to estimate **one-cycle** outcomes, so applying its decisions repeatedly over longer simulations requires separate evaluation.
 
-## Running Traflo
-
-The simulator is **not runnable yet**. Local setup commands and a deployment link will be added when the implementation files are available.
-
-## Important Limitations
-
-Traflo is an **educational and experimental traffic simulator**. Its initial data and traffic outcomes will be synthetic. It does not connect to or control physical traffic signals, and simulated improvements do not establish real-world traffic safety or effectiveness.
+Reported gains are specific to the stated synthetic scenarios and settings. **They do not establish real-world performance or safety.**
 
 ## Developer
 
 **Usman Shakir**  
-BS Data Science Undergraduate
+BS Data Science Undergraduate  
+**Stanford Code in Place X — Final Project**
 
-**Project:** Stanford Code in Place X — Final Project
-
-[GitHub](https://github.com/Usmanshakir7) | [LinkedIn](https://www.linkedin.com/in/usman-shakir7/)
+[GitHub](https://github.com/Usmanshakir7) · [LinkedIn](https://www.linkedin.com/in/usman-shakir7/) · [Live Traflo application](https://traflo-intelligent-traffic-simulation-ml-based.streamlit.app/)

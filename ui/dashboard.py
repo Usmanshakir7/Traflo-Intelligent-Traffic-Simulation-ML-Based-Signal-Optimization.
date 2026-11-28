@@ -1,52 +1,75 @@
-
-"""Controller comparison metrics and charts."""
-
+"""Comparison dashboard for fixed-time, rule-based, and ML controllers."""
 import pandas as pd
 import streamlit as st
 
+CONTROLLER_NAMES = {
+    "fixed": "Fixed-Time",
+    "adaptive": "Rule-Based",
+    "ml": "ML-Assisted",
+}
 
-def render_comparison(fixed, adaptive):
-    st.subheader("Fixed-time vs adaptive control")
-    st.caption("Both controllers use identical initial queues, arrival intervals, and simulation duration.")
 
-    rows = [
+def render_comparison(results):
+    st.subheader("Controller comparison")
+    st.caption(
+        "All controllers use identical initial traffic, "
+        "arrival intervals, and simulation duration."
+    )
+    metrics = [
         ("Vehicles arrived", "arrived"),
         ("Vehicles passed", "passed"),
-        ("Vehicles remaining", "remaining"),
-        ("Queue-seconds", "queue_seconds"),
+        ("Vehicles still waiting", "remaining"),
+        ("Total queue-seconds", "queue_seconds"),
         ("Accrued wait per arrival (s)", "average_wait_per_arrival"),
-        ("Average completed wait (s)", "average_completed_wait"),
+        ("Completed vehicle wait (s)", "average_completed_wait"),
     ]
-    table = pd.DataFrame({
-        "Metric": [label for label, _ in rows],
-        "Fixed-time": [round(fixed[key], 2) for _, key in rows],
-        "Adaptive": [round(adaptive[key], 2) for _, key in rows],
-    })
-    st.dataframe(table, hide_index=True, use_container_width=True)
+    records = []
+    for label, metric in metrics:
+        record = {"Metric": label}
+        for key, name in CONTROLLER_NAMES.items():
+            record[name] = round(results[key][metric], 2)
+        records.append(record)
 
-    if fixed["queue_seconds"] > 0:
-        improvement = 100 * (fixed["queue_seconds"] - adaptive["queue_seconds"]) / fixed["queue_seconds"]
-        st.metric("Adaptive change in accumulated waiting", f"{improvement:+.2f}%")
-        if improvement < 0:
-            st.info("The adaptive controller performed worse on this scenario. That is a valid result.")
+    st.dataframe(pd.DataFrame(records), hide_index=True, use_container_width=True)
+
+    fixed_wait = results["fixed"]["queue_seconds"]
+    if fixed_wait > 0:
+        col1, col2 = st.columns(2)
+        for column, key in ((col1, "adaptive"), (col2, "ml")):
+            improvement = (
+                100 * (fixed_wait - results[key]["queue_seconds"]) / fixed_wait
+            )
+            column.metric(
+                f"{CONTROLLER_NAMES[key]} vs fixed",
+                f"{improvement:+.2f}%",
+            )
+        st.caption("Positive improvement means less queue waiting than fixed-time control.")
     else:
-        st.info("The fixed-time controller recorded no queue waiting in this experiment.")
+        st.info("Fixed-time recorded no waiting; percentage improvement is undefined.")
 
-    st.subheader("Vehicle queues over time")
-    wait_frame = pd.DataFrame({
-        "Fixed-time": [point["total_waiting"] for point in fixed["history"]],
-        "Adaptive": [point["total_waiting"] for point in adaptive["history"]],
-    }, index=[point["time"] for point in fixed["history"]])
-    wait_frame.index.name = "Simulation second"
-    st.line_chart(wait_frame)
+    st.subheader("Waiting vehicles during the simulation")
+    times = [point["time"] for point in results["fixed"]["history"]]
+    queues = pd.DataFrame({
+        name: [point["total_waiting"] for point in results[key]["history"]]
+        for key, name in CONTROLLER_NAMES.items()
+    }, index=times)
+    queues.index.name = "Simulation second"
+    st.line_chart(queues)
 
-    st.subheader("Vehicles processed")
-    summary_frame = pd.DataFrame({
-        "Fixed-time": [fixed["passed"], fixed["remaining"]],
-        "Adaptive": [adaptive["passed"], adaptive["remaining"]],
-    }, index=["Passed", "Still waiting"])
-    st.bar_chart(summary_frame)
+    st.subheader("Processed vs remaining vehicles")
+    counts = pd.DataFrame({
+        name: [results[key]["passed"], results[key]["remaining"]]
+        for key, name in CONTROLLER_NAMES.items()
+    }, index=["Passed", "Remaining"])
+    st.bar_chart(counts)
+
+    decisions = results["ml"].get("decisions", [])
+    if decisions:
+        st.subheader("ML timing decisions per cycle")
+        st.dataframe(pd.DataFrame(decisions), hide_index=True, use_container_width=True)
+        st.caption("Predictions estimate waiting over one cycle, not the entire simulation.")
+
     st.caption(
-        "Queue-seconds are an end-of-step approximation. This educational model does not "
-        "represent real Karachi traffic measurements or control live signals."
+        "Synthetic traffic conditions. Accumulated waiting is an end-of-step "
+        "approximation; results do not establish real-world traffic performance."
     )

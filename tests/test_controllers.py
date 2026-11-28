@@ -1,74 +1,87 @@
 
 import unittest
+from unittest.mock import patch
 
-from controllers.fixed_time import FixedTimeController
-from controllers.adaptive import AdaptiveController
+from controllers.ml_controller import MLController
 
 
-class TestTrafficControllers(unittest.TestCase):
+class FakeModel:
 
-    def test_fixed_time(self):
+    def predict(self, table):
 
-        controller = FixedTimeController()
+        # Prefer the 35/25 timing option.
+        return [100, 80, 60, 20, 40]
 
-        self.assertEqual(
-            controller.get_signal(0), "NS_GREEN"
-        )
 
-        self.assertEqual(
-            controller.get_signal(30), "ALL_RED"
-        )
+class TestMLController(unittest.TestCase):
 
-        self.assertEqual(
-            controller.get_signal(34), "EW_GREEN"
-        )
+    @patch("controllers.ml_controller.joblib.load")
+    def test_model_selects_best_timing(self, fake_load):
 
-    def test_adaptive_green_times(self):
+        fake_load.return_value = {
+            "model": FakeModel(),
 
-        controller = AdaptiveController()
+            "features": [
+                "north_queue",
+                "south_queue",
+                "east_queue",
+                "west_queue",
+                "north_interval",
+                "south_interval",
+                "east_interval",
+                "west_interval",
+                "ns_green",
+                "ew_green",
+            ],
 
-        queues = {
-            "North": 50,
-            "South": 30,
-            "East": 10,
-            "West": 10
+            "green_choices": [20, 25, 30, 35, 40],
+            "total_green_time": 60,
         }
 
-        controller.get_signal(0, queues)
+        controller = MLController(
+            model_path=__file__
+        )
 
-        self.assertEqual(controller.ns_green, 40)
-        self.assertEqual(controller.ew_green, 20)
+        queues = {
+            "North": 40,
+            "South": 30,
+            "East": 10,
+            "West": 15,
+        }
 
         self.assertEqual(
-            controller.get_signal(40, queues),
+            controller.get_signal(0, queues),
+            "NS_GREEN"
+        )
+
+        self.assertEqual(
+            (controller.ns_green, controller.ew_green),
+            (35, 25)
+        )
+
+        self.assertEqual(
+            controller.get_signal(35, queues),
             "ALL_RED"
         )
 
         self.assertEqual(
-            controller.get_signal(44, queues),
+            controller.get_signal(39, queues),
             "EW_GREEN"
         )
 
-    def test_green_time_limits(self):
-
-        controller = AdaptiveController()
-
-        queues = {
-            "North": 100,
-            "South": 0,
-            "East": 0,
-            "West": 0
-        }
-
-        controller.calculate_green_times(queues)
-
-        self.assertGreaterEqual(
-            controller.ew_green, 20
+        self.assertEqual(
+            controller.get_signal(64, queues),
+            "ALL_RED"
         )
 
         self.assertEqual(
-            controller.ns_green + controller.ew_green,
-            60
+            controller.get_signal(68, queues),
+            "NS_GREEN"
+        )
+
+        self.assertEqual(
+            len(controller.decision_history),
+            2
         )
 
 

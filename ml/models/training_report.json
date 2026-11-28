@@ -1,0 +1,32 @@
+{
+    "dataset_rows": 1500,
+    "training_rows": 1200,
+    "testing_rows": 300,
+    "training_scenarios": 240,
+    "testing_scenarios": 60,
+    "prediction_metrics": {
+        "mae": 412.84303361876886,
+        "rmse": 526.7346338022465,
+        "r2": 0.9765840340355574
+    },
+    "timing_metrics": {
+        "fixed_mean_queue_seconds": 7155.7,
+        "ml_mean_queue_seconds": 7122.016666666666,
+        "best_mean_queue_seconds": 7104.15,
+        "improvement_percent": 0.4707203115465069,
+        "mean_regret": 17.866666666666667,
+        "optimal_choice_rate": 66.66666666666666
+    },
+    "feature_importance": {
+        "north_queue": 0.36025895551026477,
+        "south_queue": 0.09824649840908947,
+        "east_queue": 0.17097048682284255,
+        "west_queue": 0.3473867456540959,
+        "north_interval": 0.006939495617136801,
+        "south_interval": 0.007345642150514256,
+        "east_interval": 0.005807736657481924,
+        "west_interval": 0.0028022606586164136,
+        "ns_green": 0.0001229091168102987,
+        "ew_green": 0.00011926940314768917
+    }
+}

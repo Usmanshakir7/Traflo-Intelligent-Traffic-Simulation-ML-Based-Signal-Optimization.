@@ -1,0 +1,21 @@
+# Conda and virtual environments
+.conda/
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# VS Code local settings
+.vscode/
+
+# Secrets
+.env
+.env.*
+
+# Temporary files
+*.log
+.DS_Store
